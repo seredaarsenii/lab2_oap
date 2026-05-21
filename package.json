@@ -1,0 +1,17 @@
+{
+  "name": "lab2",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20.19.41",
+    "tsx": "^4.22.0",
+    "typescript": "^5.9.3"
+  }
+}
