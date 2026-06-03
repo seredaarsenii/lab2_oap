@@ -1,24 +1,43 @@
 import type { Request, Response, NextFunction } from 'express';
 import { reportService } from '../services/report.service.js';
+import type { ReportListOptions } from '../repositories/report.repository.js';
+
+const allowedOrderBy = ['id', 'created_at', 'severity', 'title', 'status'] as const;
+type OrderBy = (typeof allowedOrderBy)[number];
 
 export class ReportController {
-
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
+      const page = Math.max(Number(req.query.page) || 1, 1);
+      const limit = Math.min(Math.max(Number(req.query.limit ?? req.query.pageSize) || 10, 1), 100);
+      const orderParam = String(req.query.order ?? 'DESC').toUpperCase();
+      const order = orderParam === 'ASC' ? 'ASC' : 'DESC';
+      const orderByParam = String(req.query.sort ?? req.query.orderBy ?? 'id');
+      const orderBy: OrderBy = allowedOrderBy.includes(orderByParam as OrderBy)
+        ? orderByParam as OrderBy
+        : 'id';
+      const options: ReportListOptions = {
+        limit,
+        offset: (page - 1) * limit,
+        order,
+        orderBy
+      };
 
-      const status = req.query.status as string;
+      if (typeof req.query.status === 'string' && req.query.status) {
+        options.status = req.query.status;
+      }
 
-      const page = Number(req.query.page) || 1;
-      const pageSize = Number(req.query.pageSize) || 10;
+      if (typeof req.query.userId === 'string' && req.query.userId) {
+        options.userId = Number(req.query.userId);
+      }
 
-      const reports = await reportService.getAllReports(
-        status,
-        page,
-        pageSize
-      );
+      if (typeof req.query.categoryId === 'string' && req.query.categoryId) {
+        options.categoryId = Number(req.query.categoryId);
+      }
+
+      const reports = await reportService.getAllReports(options);
 
       res.json(reports);
-
     } catch (error) {
       next(error);
     }
@@ -30,11 +49,21 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-
       const report = await reportService.getReportById(req.params.id);
-
       res.json(report);
+    } catch (error) {
+      next(error);
+    }
+  }
 
+  async getDetailsById(
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction
+  ) {
+    try {
+      const report = await reportService.getReportDetailsById(req.params.id);
+      res.json(report);
     } catch (error) {
       next(error);
     }
@@ -42,11 +71,8 @@ export class ReportController {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-
       const newReport = await reportService.createReport(req.body);
-
       res.status(201).json(newReport);
-
     } catch (error) {
       next(error);
     }
@@ -58,14 +84,8 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-
-      const updated = await reportService.updateReport(
-        req.params.id,
-        req.body
-      );
-
+      const updated = await reportService.updateReport(req.params.id, req.body);
       res.json(updated);
-
     } catch (error) {
       next(error);
     }
@@ -77,11 +97,8 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-
       await reportService.deleteReport(req.params.id);
-
       res.status(204).send();
-
     } catch (error) {
       next(error);
     }

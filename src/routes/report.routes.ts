@@ -6,9 +6,9 @@ const router = Router();
 
 router.get('/', reportController.getAll);
 
-router.get('/:id', reportController.getById);
+router.get('/:id/details', reportController.getDetailsById);
 
-router.post('/', reportController.create);
+router.get('/:id', reportController.getById);
 
 router.post('/', validateReport, reportController.create);
 

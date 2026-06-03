@@ -1,35 +1,29 @@
 import { getDb } from '../db/db.js';
 
-export interface User {
+export interface Category {
   id: number;
-  username: string;
-  email: string;
+  name: string;
+  description: string;
   created_at: string;
 }
 
-export interface UserListOptions {
-  email?: string;
-  username?: string;
+export interface CategoryListOptions {
+  name?: string;
   limit?: number;
   offset?: number;
-  orderBy?: 'id' | 'created_at' | 'username' | 'email';
+  orderBy?: 'id' | 'created_at' | 'name';
   order?: 'ASC' | 'DESC';
 }
 
-class UserRepository {
-  async findAll(options: UserListOptions = {}) {
+class CategoryRepository {
+  async findAll(options: CategoryListOptions = {}) {
     const db = await getDb();
     const where: string[] = [];
     const params: unknown[] = [];
 
-    if (options.email) {
-      where.push('email LIKE ?');
-      params.push(`%${options.email}%`);
-    }
-
-    if (options.username) {
-      where.push('username LIKE ?');
-      params.push(`%${options.username}%`);
+    if (options.name) {
+      where.push('name LIKE ?');
+      params.push(`%${options.name}%`);
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -38,9 +32,9 @@ class UserRepository {
     const limit = options.limit ?? 10;
     const offset = options.offset ?? 0;
 
-    const items = await db.all<User[]>(
-      `SELECT id, username, email, created_at
-       FROM users
+    const items = await db.all<Category[]>(
+      `SELECT id, name, description, created_at
+       FROM categories
        ${whereSql}
        ORDER BY ${orderBy} ${order}
        LIMIT ? OFFSET ?`,
@@ -50,7 +44,7 @@ class UserRepository {
     );
 
     const totalRow = await db.get<{ total: number }>(
-      `SELECT COUNT(*) AS total FROM users ${whereSql}`,
+      `SELECT COUNT(*) AS total FROM categories ${whereSql}`,
       ...params
     );
 
@@ -60,32 +54,32 @@ class UserRepository {
     };
   }
 
-  async findById(id: string): Promise<User | undefined> {
+  async findById(id: string) {
     const db = await getDb();
-    return db.get<User>(
-      'SELECT id, username, email, created_at FROM users WHERE id = ?',
+    return db.get<Category>(
+      'SELECT id, name, description, created_at FROM categories WHERE id = ?',
       id
     );
   }
 
-  async create(userData: Pick<User, 'username' | 'email'>): Promise<User> {
+  async create(data: Pick<Category, 'name' | 'description'>) {
     const db = await getDb();
     const result = await db.run(
-      'INSERT INTO users (username, email) VALUES (?, ?)',
-      userData.username,
-      userData.email
+      'INSERT INTO categories (name, description) VALUES (?, ?)',
+      data.name,
+      data.description
     );
 
     const created = await this.findById(String(result.lastID));
     if (!created) {
-      throw new Error('Created user was not found');
+      throw new Error('Created category was not found');
     }
 
     return created;
   }
 
-  async update(id: string, data: Partial<Pick<User, 'username' | 'email'>>) {
-    const allowedFields = ['username', 'email'] as const;
+  async update(id: string, data: Partial<Pick<Category, 'name' | 'description'>>) {
+    const allowedFields = ['name', 'description'] as const;
     const entries = allowedFields
       .filter(field => data[field] !== undefined)
       .map(field => [field, data[field]] as const);
@@ -98,7 +92,7 @@ class UserRepository {
     const params = entries.map(([, value]) => value);
     const db = await getDb();
     const result = await db.run(
-      `UPDATE users SET ${assignments} WHERE id = ?`,
+      `UPDATE categories SET ${assignments} WHERE id = ?`,
       ...params,
       id
     );
@@ -110,11 +104,11 @@ class UserRepository {
     return this.findById(id);
   }
 
-  async delete(id: string): Promise<boolean> {
+  async delete(id: string) {
     const db = await getDb();
-    const result = await db.run('DELETE FROM users WHERE id = ?', id);
+    const result = await db.run('DELETE FROM categories WHERE id = ?', id);
     return Boolean(result.changes);
   }
 }
 
-export const userRepository = new UserRepository();
+export const categoryRepository = new CategoryRepository();

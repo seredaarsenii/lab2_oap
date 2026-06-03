@@ -1,11 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
-import { userService } from '../services/user.service.js';
-import type { UserListOptions } from '../repositories/user.repository.js';
+import { categoryService } from '../services/category.service.js';
+import type { CategoryListOptions } from '../repositories/category.repository.js';
 
-const allowedSort = ['id', 'created_at', 'username', 'email'] as const;
-type UserSort = (typeof allowedSort)[number];
+const allowedSort = ['id', 'created_at', 'name'] as const;
+type CategorySort = (typeof allowedSort)[number];
 
-class UserController {
+class CategoryController {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const page = Math.max(Number(req.query.page) || 1, 1);
@@ -13,26 +13,22 @@ class UserController {
       const orderParam = String(req.query.order ?? 'DESC').toUpperCase();
       const order = orderParam === 'ASC' ? 'ASC' : 'DESC';
       const sortParam = String(req.query.sort ?? req.query.orderBy ?? 'id');
-      const orderBy: UserSort = allowedSort.includes(sortParam as UserSort)
-        ? sortParam as UserSort
+      const orderBy: CategorySort = allowedSort.includes(sortParam as CategorySort)
+        ? sortParam as CategorySort
         : 'id';
-      const options: UserListOptions = {
+      const options: CategoryListOptions = {
         limit,
         offset: (page - 1) * limit,
         order,
         orderBy
       };
 
-      if (typeof req.query.email === 'string' && req.query.email) {
-        options.email = req.query.email;
+      if (typeof req.query.name === 'string' && req.query.name) {
+        options.name = req.query.name;
       }
 
-      if (typeof req.query.username === 'string' && req.query.username) {
-        options.username = req.query.username;
-      }
-
-      const users = await userService.getAllUsers(options);
-      res.json(users);
+      const categories = await categoryService.getAllCategories(options);
+      res.json(categories);
     } catch (error) {
       next(error);
     }
@@ -44,8 +40,8 @@ class UserController {
     next: NextFunction
   ) {
     try {
-      const user = await userService.getUserById(req.params.id);
-      res.json(user);
+      const category = await categoryService.getCategoryById(req.params.id);
+      res.json(category);
     } catch (error) {
       next(error);
     }
@@ -53,8 +49,8 @@ class UserController {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const newUser = await userService.createUser(req.body);
-      res.status(201).json(newUser);
+      const created = await categoryService.createCategory(req.body);
+      res.status(201).json(created);
     } catch (error) {
       next(error);
     }
@@ -66,7 +62,7 @@ class UserController {
     next: NextFunction
   ) {
     try {
-      const updated = await userService.updateUser(req.params.id, req.body);
+      const updated = await categoryService.updateCategory(req.params.id, req.body);
       res.json(updated);
     } catch (error) {
       next(error);
@@ -79,7 +75,7 @@ class UserController {
     next: NextFunction
   ) {
     try {
-      await userService.deleteUser(req.params.id);
+      await categoryService.deleteCategory(req.params.id);
       res.status(204).send();
     } catch (error) {
       next(error);
@@ -87,4 +83,4 @@ class UserController {
   }
 }
 
-export const userController = new UserController();
+export const categoryController = new CategoryController();

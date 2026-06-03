@@ -1,56 +1,217 @@
+import { getDb } from '../db/db.js';
+
 export interface Report {
-  id: string;
+  id: number;
+  user_id: number;
+  category_id: number | null;
   title: string;
   severity: 'Low' | 'Medium' | 'High';
   status: 'Open' | 'Closed' | 'In Progress';
   description: string;
   reporter: string;
+  created_at: string;
+}
+
+export interface ReportDetails extends Report {
+  user: {
+    id: number;
+    username: string;
+    email: string;
+  };
+  category: {
+    id: number;
+    name: string;
+    description: string;
+  } | null;
+}
+
+export interface ReportListOptions {
+  status?: string;
+  userId?: number;
+  categoryId?: number;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'id' | 'created_at' | 'severity' | 'title' | 'status';
+  order?: 'ASC' | 'DESC';
 }
 
 class ReportRepository {
-  // масив для зберігання даних у пам'яті 
-  private reports: Report[] = [];
+  async findAll(options: ReportListOptions = {}) {
+    const db = await getDb();
+    const where: string[] = [];
+    const params: unknown[] = [];
 
-  async findAll() {
-    return this.reports;
+    if (options.status) {
+      where.push('status = ?');
+      params.push(options.status);
+    }
+
+    if (options.userId) {
+      where.push('user_id = ?');
+      params.push(options.userId);
+    }
+
+    if (options.categoryId) {
+      where.push('category_id = ?');
+      params.push(options.categoryId);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const orderBy = options.orderBy ?? 'id';
+    const order = options.order ?? 'DESC';
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+
+    const items = await db.all<Report[]>(
+      `SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
+       FROM reports
+       ${whereSql}
+       ORDER BY ${orderBy} ${order}
+       LIMIT ? OFFSET ?`,
+      ...params,
+      limit,
+      offset
+    );
+
+    const totalRow = await db.get<{ total: number }>(
+      `SELECT COUNT(*) AS total FROM reports ${whereSql}`,
+      ...params
+    );
+
+    return {
+      items,
+      total: totalRow?.total ?? 0
+    };
   }
 
   async findById(id: string) {
-    return this.reports.find(r => r.id === id);
+    const db = await getDb();
+    return db.get<Report>(
+      `SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
+       FROM reports
+       WHERE id = ?`,
+      id
+    );
   }
 
-  async create(data: Omit<Report, 'id' | 'status'>) {
-    const newReport: Report = {
-      ...data,
-      id: Date.now().toString(), 
-      status: 'Open' 
+  async findDetailsById(id: string): Promise<ReportDetails | undefined> {
+    const db = await getDb();
+    const row = await db.get<{
+      id: number;
+      user_id: number;
+      category_id: number | null;
+      title: string;
+      severity: 'Low' | 'Medium' | 'High';
+      status: 'Open' | 'Closed' | 'In Progress';
+      description: string;
+      reporter: string;
+      created_at: string;
+      user_username: string;
+      user_email: string;
+      category_name: string | null;
+      category_description: string | null;
+    }>(
+      `SELECT
+         reports.id,
+         reports.user_id,
+         reports.category_id,
+         reports.title,
+         reports.severity,
+         reports.status,
+         reports.description,
+         reports.reporter,
+         reports.created_at,
+         users.username AS user_username,
+         users.email AS user_email,
+         categories.name AS category_name,
+         categories.description AS category_description
+       FROM reports
+       JOIN users ON users.id = reports.user_id
+       LEFT JOIN categories ON categories.id = reports.category_id
+       WHERE reports.id = ?`,
+      id
+    );
+
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      id: row.id,
+      user_id: row.user_id,
+      category_id: row.category_id,
+      title: row.title,
+      severity: row.severity,
+      status: row.status,
+      description: row.description,
+      reporter: row.reporter,
+      created_at: row.created_at,
+      user: {
+        id: row.user_id,
+        username: row.user_username,
+        email: row.user_email
+      },
+      category: row.category_id === null
+        ? null
+        : {
+            id: row.category_id,
+            name: row.category_name ?? '',
+            description: row.category_description ?? ''
+          }
     };
-    this.reports.push(newReport);
-    return newReport;
   }
 
-  async update(id: string, data: Partial<Report>) {
-    const index = this.reports.findIndex(r => r.id === id);
-    if (index === -1) return null;
+  async create(data: Omit<Report, 'id' | 'status' | 'created_at'>) {
+    const db = await getDb();
+    const result = await db.run(
+      `INSERT INTO reports (user_id, category_id, title, severity, description, reporter)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      data.user_id,
+      data.category_id,
+      data.title,
+      data.severity,
+      data.description,
+      data.reporter
+    );
 
-    const existingReport = this.reports[index] as Report;
+    const created = await this.findById(String(result.lastID));
+    if (!created) {
+      throw { status: 500, message: 'Created report was not found' };
+    }
 
-    const updatedReport: Report = { 
-      ...existingReport, 
-      ...data, 
-      id: existingReport.id 
-    };
+    return created;
+  }
 
-    this.reports[index] = updatedReport;
-    return updatedReport;
+  async update(id: string, data: Partial<Omit<Report, 'id' | 'created_at'>>) {
+    const allowedFields = ['user_id', 'category_id', 'title', 'severity', 'status', 'description', 'reporter'] as const;
+    const entries = allowedFields
+      .filter(field => data[field] !== undefined)
+      .map(field => [field, data[field]] as const);
+
+    if (!entries.length) {
+      return this.findById(id);
+    }
+
+    const assignments = entries.map(([field]) => `${field} = ?`).join(', ');
+    const params = entries.map(([, value]) => value);
+    const db = await getDb();
+    const result = await db.run(
+      `UPDATE reports SET ${assignments} WHERE id = ?`,
+      ...params,
+      id
+    );
+
+    if (!result.changes) {
+      return null;
+    }
+
+    return this.findById(id);
   }
 
   async delete(id: string) {
-    const index = this.reports.findIndex(r => r.id === id);
-    if (index === -1) return false;
-
-    this.reports.splice(index, 1);
-    return true;
+    const db = await getDb();
+    const result = await db.run('DELETE FROM reports WHERE id = ?', id);
+    return Boolean(result.changes);
   }
 }
 
