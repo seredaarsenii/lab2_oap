@@ -8,8 +8,6 @@ router.get('/', reportController.getAll);
 
 router.get('/:id', reportController.getById);
 
-router.post('/', reportController.create);
-
 router.post('/', validateReport, reportController.create);
 
 router.put('/:id', reportController.update);

@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Лабораторна №1 Репорт вразливостей Варіант №6</title>
+    <title>Сервіс репортів вразливостей</title>
     <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <h1>Сервіс «репорт вразливості». Варіант №6</h1>
+    <h1>Сервіс репортів вразливостей</h1>
 
-    <div class="main-container">
+    <main class="main-container">
         <section class="form-section">
-            <h2 id="formTitle">Додати новий репорт</h2>
+            <h2 id="formTitle">Додати репорт</h2>
             <form id="reportForm">
                 <div class="form-group">
-                    <label for="title">Назва вразливості:</label>
+                    <label for="title">Назва вразливості</label>
                     <input type="text" id="title" name="title">
                     <span class="error-msg" id="titleError"></span>
                 </div>
 
                 <div class="form-group">
-                    <label for="severity">Важливість (Severity):</label>
+                    <label for="severity">Важливість</label>
                     <select id="severity" name="severity">
                         <option value="">Оберіть...</option>
                         <option value="Low">Low</option>
@@ -31,26 +31,37 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="description">Опис (Description):</label>
+                    <label for="status">Статус</label>
+                    <select id="status" name="status">
+                        <option value="Open">Open</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Closed">Closed</option>
+                    </select>
+                    <span class="error-msg" id="statusError"></span>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Опис</label>
                     <textarea id="description" name="description" rows="4"></textarea>
                     <span class="error-msg" id="descriptionError"></span>
                 </div>
 
                 <div class="form-group">
-                    <label for="reporter">Репортер (Reporter):</label>
+                    <label for="reporter">Репортер</label>
                     <input type="text" id="reporter" name="reporter">
                     <span class="error-msg" id="reporterError"></span>
                 </div>
 
+                <p class="form-message" id="formMessage"></p>
                 <button type="submit" id="submitBtn">Додати репорт</button>
+                <button type="button" id="cancelBtn" class="secondary-btn" hidden>Скасувати</button>
             </form>
         </section>
 
         <section class="list-section">
-            <h2>Список репортів</h2>
-            
-            <div class="filter-container" style="margin-bottom: 15px;">
-                <input type="text" id="searchInput" placeholder="Пошук за назвою репорту...">
+            <div class="list-header">
+                <h2>Список репортів</h2>
+                <input type="text" id="searchInput" placeholder="Пошук за назвою...">
             </div>
 
             <table id="reportsTable">
@@ -66,7 +77,7 @@
                 <tbody id="reportsBody"></tbody>
             </table>
         </section>
-    </div>
+    </main>
 
     <script src="./index.js"></script>
 </body>

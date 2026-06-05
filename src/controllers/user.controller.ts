@@ -1,23 +1,49 @@
-import type { Request, Response } from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import { userService } from '../services/user.service.js';
 
 class UserController {
-  async getAll(req: Request, res: Response) {
-    const users = await userService.getAllUsers();
-    res.json({
-    items: users,
-    total: users.length
-  });
+  async getAll(req: Request, res: Response, next: NextFunction) {
+    try {
+      const users = await userService.getAllUsers();
+      res.json(users);
+    } catch (error) {
+      next(error);
+    }
   }
 
-  async create(req: Request, res: Response) {
+  async getById(req: Request<{ id: string }>, res: Response, next: NextFunction) {
+    try {
+      const user = await userService.getUserById(req.params.id);
+      res.json(user);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async create(req: Request, res: Response, next: NextFunction) {
     try {
       const newUser = await userService.createUser(req.body);
-      // Пункт 8: POST повертає 201 і створений об'єкт
       res.status(201).json(newUser);
-    } catch (error: any) {
-      // при помилці валідації - 400 Bad Request
-      res.status(400).json({ message: error.message });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async update(req: Request<{ id: string }>, res: Response, next: NextFunction) {
+    try {
+      const updated = await userService.updateUser(req.params.id, req.body);
+      res.json(updated);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async delete(req: Request<{ id: string }>, res: Response, next: NextFunction) {
+    try {
+      await userService.deleteUser(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
     }
   }
 }
