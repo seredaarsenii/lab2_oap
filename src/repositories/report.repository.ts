@@ -25,6 +25,14 @@ export interface ReportDetails extends Report {
   } | null;
 }
 
+export interface ReportStats {
+  total: number;
+  open: number;
+  in_progress: number;
+  closed: number;
+  high_severity: number;
+}
+
 export interface ReportListOptions {
   status?: string;
   userId?: number;
@@ -159,6 +167,142 @@ class ReportRepository {
             description: row.category_description ?? ''
           }
     };
+  }
+
+  async findDetails(options: ReportListOptions = {}) {
+    const db = await getDb();
+    const where: string[] = [];
+    const params: unknown[] = [];
+
+    if (options.status) {
+      where.push('reports.status = ?');
+      params.push(options.status);
+    }
+
+    if (options.userId) {
+      where.push('reports.user_id = ?');
+      params.push(options.userId);
+    }
+
+    if (options.categoryId) {
+      where.push('reports.category_id = ?');
+      params.push(options.categoryId);
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const orderBy = options.orderBy ?? 'created_at';
+    const order = options.order ?? 'DESC';
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+
+    const rows = await db.all<{
+      id: number;
+      user_id: number;
+      category_id: number | null;
+      title: string;
+      severity: 'Low' | 'Medium' | 'High';
+      status: 'Open' | 'Closed' | 'In Progress';
+      description: string;
+      reporter: string;
+      created_at: string;
+      user_username: string;
+      user_email: string;
+      category_name: string | null;
+      category_description: string | null;
+    }[]>(
+      `SELECT
+         reports.id,
+         reports.user_id,
+         reports.category_id,
+         reports.title,
+         reports.severity,
+         reports.status,
+         reports.description,
+         reports.reporter,
+         reports.created_at,
+         users.username AS user_username,
+         users.email AS user_email,
+         categories.name AS category_name,
+         categories.description AS category_description
+       FROM reports
+       JOIN users ON users.id = reports.user_id
+       LEFT JOIN categories ON categories.id = reports.category_id
+       ${whereSql}
+       ORDER BY reports.${orderBy} ${order}
+       LIMIT ? OFFSET ?`,
+      ...params,
+      limit,
+      offset
+    );
+
+    const totalRow = await db.get<{ total: number }>(
+      `SELECT COUNT(*) AS total
+       FROM reports
+       JOIN users ON users.id = reports.user_id
+       LEFT JOIN categories ON categories.id = reports.category_id
+       ${whereSql}`,
+      ...params
+    );
+
+    return {
+      items: rows.map(row => ({
+        id: row.id,
+        user_id: row.user_id,
+        category_id: row.category_id,
+        title: row.title,
+        severity: row.severity,
+        status: row.status,
+        description: row.description,
+        reporter: row.reporter,
+        created_at: row.created_at,
+        user: {
+          id: row.user_id,
+          username: row.user_username,
+          email: row.user_email
+        },
+        category: row.category_id === null
+          ? null
+          : {
+              id: row.category_id,
+              name: row.category_name ?? '',
+              description: row.category_description ?? ''
+            }
+      })),
+      total: totalRow?.total ?? 0
+    };
+  }
+
+  async getStats(): Promise<ReportStats> {
+    const db = await getDb();
+    const stats = await db.get<ReportStats>(
+      `SELECT
+         COUNT(*) AS total,
+         COALESCE(SUM(CASE WHEN status = 'Open' THEN 1 ELSE 0 END), 0) AS open,
+         COALESCE(SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END), 0) AS in_progress,
+         COALESCE(SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END), 0) AS closed,
+         COALESCE(SUM(CASE WHEN severity = 'High' THEN 1 ELSE 0 END), 0) AS high_severity
+       FROM reports`
+    );
+
+    return stats ?? {
+      total: 0,
+      open: 0,
+      in_progress: 0,
+      closed: 0,
+      high_severity: 0
+    };
+  }
+
+  async unsafeSearchByTitle(title: string) {
+    const db = await getDb();
+    const sql = `
+      SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
+      FROM reports
+      WHERE title = '${title}'
+      LIMIT 20
+    `;
+
+    return db.all<Report[]>(sql);
   }
 
   async create(data: Omit<Report, 'id' | 'status' | 'created_at'>) {

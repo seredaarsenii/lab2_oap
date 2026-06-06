@@ -1,4 +1,4 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import sqlite3 from 'sqlite3';
@@ -29,47 +29,43 @@ export async function getDb() {
 
 export async function initDb() {
   const database = await getDb();
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schemaSql = await readFile(schemaPath, 'utf8');
-  await database.exec(schemaSql);
-  await applyMigration(database, '001_init_schema', async () => undefined);
-  await applyMigration(database, '002_add_report_category_column', migrateReportCategoryColumn);
-  await applyMigration(database, '003_add_reports_status_created_at_index', async db => {
-    await db.exec(
-      `CREATE INDEX IF NOT EXISTS idx_reports_status_created_at
-       ON reports(status, created_at)`
-    );
-  });
+  await database.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await runMigrations(database);
   console.log('[DB] Schema initialized');
 }
 
-async function applyMigration(
-  database: AppDatabase,
-  id: string,
-  change: (database: AppDatabase) => Promise<void>
-) {
-  const applied = await database.get<{ id: string }>(
-    'SELECT id FROM schema_migrations WHERE id = ?',
-    id
-  );
+async function runMigrations(database: AppDatabase) {
+  const migrationsDir = path.join(__dirname, 'migrations');
+  const files = (await readdir(migrationsDir))
+    .filter(file => /^\d+_.+\.sql$/.test(file))
+    .sort();
 
-  if (applied) {
-    return;
-  }
-
-  await change(database);
-  await database.run('INSERT INTO schema_migrations (id) VALUES (?)', id);
-  console.log(`[DB] Migration applied: ${id}`);
-}
-
-async function migrateReportCategoryColumn(database: AppDatabase) {
-  const columns = await database.all<{ name: string }[]>('PRAGMA table_info(reports)');
-  const hasCategoryId = columns.some(column => column.name === 'category_id');
-
-  if (!hasCategoryId) {
-    await database.exec(
-      'ALTER TABLE reports ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL'
+  for (const file of files) {
+    const applied = await database.get<{ id: string }>(
+      'SELECT id FROM schema_migrations WHERE id = ?',
+      file
     );
-    console.log('[DB] Added reports.category_id column');
+
+    if (applied) {
+      continue;
+    }
+
+    const sql = await readFile(path.join(migrationsDir, file), 'utf8');
+    await database.exec('BEGIN TRANSACTION;');
+
+    try {
+      await database.exec(sql);
+      await database.run('INSERT INTO schema_migrations (id) VALUES (?)', file);
+      await database.exec('COMMIT;');
+      console.log(`[DB] Migration applied: ${file}`);
+    } catch (error) {
+      await database.exec('ROLLBACK;');
+      throw error;
+    }
   }
 }

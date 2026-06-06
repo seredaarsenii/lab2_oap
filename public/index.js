@@ -12,7 +12,7 @@ async function loadReports() {
 
     const data = await response.json();
 
-    reports = data.items;
+    reports = data.data;
 
     render();
 }

@@ -3,7 +3,7 @@ import { reportRepository, type ReportListOptions } from '../repositories/report
 import { userRepository } from '../repositories/user.repository.js';
 import type { CreateReportDto } from '../dtos/create-report.dto.js';
 import type { UpdateReportDto } from '../dtos/update-report.dto.js';
-import { badRequest, notFound } from '../utils/http-error.js';
+import { badRequest, forbidden, notFound } from '../utils/http-error.js';
 
 const severityValues = ['Low', 'Medium', 'High'];
 const statusValues = ['Open', 'Closed', 'In Progress'];
@@ -31,6 +31,28 @@ export class ReportService {
     }
 
     return report;
+  }
+
+  async getReportDetails(options: ReportListOptions) {
+    return reportRepository.findDetails(options);
+  }
+
+  async getReportStats() {
+    return reportRepository.getStats();
+  }
+
+  async unsafeSearchByTitle(title: string) {
+    if (process.env.ENABLE_UNSAFE_SQL_DEMO !== 'true') {
+      throw forbidden('Unsafe SQL demo is disabled', {
+        enableWith: 'ENABLE_UNSAFE_SQL_DEMO=true'
+      });
+    }
+
+    if (!title) {
+      throw badRequest('title query parameter is required', { field: 'title' });
+    }
+
+    return reportRepository.unsafeSearchByTitle(title);
   }
 
   async createReport(data: CreateReportDto) {

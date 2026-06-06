@@ -6,6 +6,12 @@ const router = Router();
 
 router.get('/', reportController.getAll);
 
+router.get('/stats', reportController.getStats);
+
+router.get('/details', reportController.getDetails);
+
+router.get('/demo/unsafe-search', reportController.unsafeSearch);
+
 router.get('/:id/details', reportController.getDetailsById);
 
 router.get('/:id', reportController.getById);

@@ -28,7 +28,14 @@ class CategoryController {
       }
 
       const categories = await categoryService.getAllCategories(options);
-      res.json(categories);
+      res.json({
+        data: categories.items,
+        meta: {
+          total: categories.total,
+          page,
+          limit
+        }
+      });
     } catch (error) {
       next(error);
     }

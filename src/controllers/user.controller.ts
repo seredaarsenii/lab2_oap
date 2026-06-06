@@ -32,7 +32,14 @@ class UserController {
       }
 
       const users = await userService.getAllUsers(options);
-      res.json(users);
+      res.json({
+        data: users.items,
+        meta: {
+          total: users.total,
+          page,
+          limit
+        }
+      });
     } catch (error) {
       next(error);
     }
