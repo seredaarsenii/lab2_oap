@@ -1,20 +1,28 @@
 {
-  "name": "lab2",
+  "name": "lab4",
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "tsx watch src/index.ts",
+    "dev:frontend": "vite --host localhost --port 5173",
+    "build": "npm run check && vite build",
+    "check": "tsc --noEmit && tsc -p tsconfig.frontend.json --noEmit",
     "seed": "tsx src/db/seed.ts"
   },
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^5.2.1",
     "sqlite": "^5.1.1",
     "sqlite3": "^6.0.1"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^20.19.41",
+    "concurrently": "^10.0.3",
     "tsx": "^4.22.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.0.16"
   }
 }

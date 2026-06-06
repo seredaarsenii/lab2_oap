@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Керування звітами про вразливості">
+    <title>Звіти про вразливості</title>
+    <link rel="stylesheet" href="/src/style.css">
+  </head>
+  <body>
+    <header class="page-header">
+      <div>
+        <p class="eyebrow">Лабораторна робота №4</p>
+        <h1>Звіти про вразливості</h1>
+        <p>Frontend і backend взаємодіють через версіонований REST API.</p>
+      </div>
+      <button id="reloadBtn" class="button secondary" type="button">Оновити список</button>
+    </header>
+
+    <main class="layout">
+      <section class="card form-card">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Форма</p>
+            <h2 id="formTitle">Створити звіт</h2>
+          </div>
+          <button id="cancelEditBtn" class="button link hidden" type="button">Скасувати</button>
+        </div>
+
+        <div id="formNotice" class="notice hidden" role="status"></div>
+
+        <form id="reportForm" novalidate>
+          <div class="field">
+            <label for="userId">Автор *</label>
+            <select id="userId" name="userId" required>
+              <option value="">Оберіть автора</option>
+            </select>
+            <span id="userIdError" class="field-error"></span>
+          </div>
+
+          <div class="field">
+            <label for="categoryId">Категорія</label>
+            <select id="categoryId" name="categoryId">
+              <option value="">Без категорії</option>
+            </select>
+            <span id="categoryIdError" class="field-error"></span>
+          </div>
+
+          <div class="field">
+            <label for="title">Назва *</label>
+            <input id="title" name="title" type="text" minlength="3" maxlength="120" required>
+            <span id="titleError" class="field-error"></span>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <label for="severity">Критичність *</label>
+              <select id="severity" name="severity" required>
+                <option value="">Оберіть рівень</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+              </select>
+              <span id="severityError" class="field-error"></span>
+            </div>
+
+            <div id="statusField" class="field hidden">
+              <label for="status">Статус</label>
+              <select id="status" name="status">
+                <option value="Open">Open</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Closed">Closed</option>
+              </select>
+              <span id="statusError" class="field-error"></span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="reporter">Репортер *</label>
+            <input id="reporter" name="reporter" type="text" minlength="2" maxlength="80" required>
+            <span id="reporterError" class="field-error"></span>
+          </div>
+
+          <div class="field">
+            <label for="description">Опис *</label>
+            <textarea id="description" name="description" rows="5" minlength="5" maxlength="1000" required></textarea>
+            <span id="descriptionError" class="field-error"></span>
+          </div>
+
+          <button id="submitBtn" class="button primary" type="submit">Створити звіт</button>
+        </form>
+      </section>
+
+      <section class="card list-card">
+        <div class="section-heading list-heading">
+          <div>
+            <p class="eyebrow">Основна сутність</p>
+            <h2>Список звітів</h2>
+          </div>
+          <label class="search">
+            <span>Пошук</span>
+            <input id="searchInput" type="search" placeholder="Назва або репортер">
+          </label>
+        </div>
+
+        <div id="listState" class="state loading" role="status">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>Завантаження звітів...</span>
+        </div>
+
+        <div id="tableWrapper" class="table-wrapper hidden">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Назва</th>
+                <th>Критичність</th>
+                <th>Статус</th>
+                <th>Репортер</th>
+                <th>Дії</th>
+              </tr>
+            </thead>
+            <tbody id="reportsBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="detailsDialog">
+      <div class="dialog-header">
+        <div>
+          <p class="eyebrow">GET /api/v1/reports/:id</p>
+          <h2>Деталі звіту</h2>
+        </div>
+        <button id="closeDialogBtn" class="icon-button" type="button" aria-label="Закрити">×</button>
+      </div>
+      <div id="detailsContent"></div>
+    </dialog>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
