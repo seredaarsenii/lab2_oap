@@ -1,4 +1,4 @@
-import { ApiError, referenceApi, reportApi } from './apiClient';
+import { ApiError, authApi, referenceApi, reportApi } from './apiClient';
 import type {
   Category,
   CreateReportDto,
@@ -23,6 +23,14 @@ const formNotice = getElement<HTMLDivElement>('formNotice');
 const detailsDialog = getElement<HTMLDialogElement>('detailsDialog');
 const detailsContent = getElement<HTMLDivElement>('detailsContent');
 const closeDialogBtn = getElement<HTMLButtonElement>('closeDialogBtn');
+const authSection = getElement<HTMLElement>('authSection');
+const authForm = getElement<HTMLFormElement>('authForm');
+const authNotice = getElement<HTMLDivElement>('authNotice');
+const emailInput = getElement<HTMLInputElement>('loginEmail');
+const passwordInput = getElement<HTMLInputElement>('loginPassword');
+const appShell = getElement<HTMLElement>('appShell');
+const logoutBtn = getElement<HTMLButtonElement>('logoutBtn');
+const currentUserLabel = getElement<HTMLSpanElement>('currentUserLabel');
 
 const userSelect = getElement<HTMLSelectElement>('userId');
 const categorySelect = getElement<HTMLSelectElement>('categoryId');
@@ -36,7 +44,10 @@ let reports: Report[] = [];
 let users: User[] = [];
 let categories: Category[] = [];
 let editId: number | null = null;
+let currentUser: User | null = authApi.getSessionUser();
 
+authForm.addEventListener('submit', handleLogin);
+logoutBtn.addEventListener('click', logout);
 reportForm.addEventListener('submit', handleSubmit);
 reportsBody.addEventListener('click', handleTableClick);
 reloadBtn.addEventListener('click', () => void loadInitialData());
@@ -49,21 +60,55 @@ detailsDialog.addEventListener('click', (event) => {
   }
 });
 
-void loadInitialData();
+if (currentUser) {
+  showApplication(currentUser);
+  void loadInitialData();
+}
+
+async function handleLogin(event: SubmitEvent): Promise<void> {
+  event.preventDefault();
+  authNotice.className = 'notice hidden';
+
+  try {
+    const response = await authApi.login(emailInput.value.trim(), passwordInput.value);
+    currentUser = response.user;
+    showApplication(response.user);
+    await loadInitialData();
+  } catch (error) {
+    authNotice.className = 'notice error';
+    authNotice.textContent = getErrorMessage(error);
+  }
+}
+
+function logout(): void {
+  authApi.logout();
+  currentUser = null;
+  reports = [];
+  users = [];
+  categories = [];
+  appShell.classList.add('hidden');
+  authSection.classList.remove('hidden');
+  passwordInput.value = '';
+}
+
+function showApplication(user: User): void {
+  currentUserLabel.textContent = `${user.username} (${user.email})`;
+  authSection.classList.add('hidden');
+  appShell.classList.remove('hidden');
+}
 
 async function loadInitialData(): Promise<void> {
   setListState('loading', 'Завантаження звітів...');
   setReloadBusy(true);
 
   try {
-    const [reportResponse, userResponse, categoryResponse] = await Promise.all([
+    const [reportResponse, categoryResponse] = await Promise.all([
       reportApi.getList(),
-      referenceApi.getUsers(),
       referenceApi.getCategories()
     ]);
 
     reports = reportResponse.data;
-    users = userResponse.data;
+    users = currentUser ? [currentUser] : [];
     categories = categoryResponse.data;
     renderReferenceOptions();
     renderReports();

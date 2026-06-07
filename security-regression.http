@@ -1,0 +1,72 @@
+@baseUrl = http://localhost:3000
+@apiUrl = {{baseUrl}}/api/v1
+
+### Login as Ivan
+# @name loginIvan
+POST {{apiUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ivan@example.com",
+  "password": "Student123!"
+}
+
+### Login as Olena
+# @name loginOlena
+POST {{apiUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "olena@example.com",
+  "password": "Student123!"
+}
+
+### 401: no token
+GET {{apiUrl}}/reports
+
+### 401: invalid token
+GET {{apiUrl}}/reports
+Authorization: Bearer invalid-token
+
+### 200: Ivan reads own report
+GET {{apiUrl}}/reports/1
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+
+### 403 IDOR: Ivan tries to read Olena's report
+GET {{apiUrl}}/reports/3
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+
+### 403 IDOR: Ivan tries to update Olena's report
+PUT {{apiUrl}}/reports/3
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "title": "Blocked IDOR update"
+}
+
+### Safe SQLi: payload is treated as text and returns an empty data array
+GET {{apiUrl}}/reports/demo/safe-search?title=%27%20OR%201%3D1%20--
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+
+### Unsafe SQLi PoC: only works when ENABLE_UNSAFE_SQL_DEMO=true
+GET {{apiUrl}}/reports/demo/unsafe-search?title=%27%20OR%201%3D1%20--
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+
+### Stored XSS payload: safely rendered by frontend through textContent
+POST {{apiUrl}}/reports
+Authorization: Bearer {{loginIvan.response.body.$.token}}
+Content-Type: application/json
+
+{
+  "userId": 2,
+  "categoryId": 1,
+  "title": "<script>alert(1)</script>",
+  "severity": "High",
+  "description": "<img src=x onerror=alert(1)>",
+  "reporter": "Security student"
+}
+
+### Security headers and health
+GET {{baseUrl}}/health
+Origin: http://localhost:5173

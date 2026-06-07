@@ -2,6 +2,7 @@ import type {
   Category,
   CreateReportDto,
   ListResponse,
+  LoginResponse,
   ProblemDetails,
   Report,
   UpdateReportDto,
@@ -10,6 +11,8 @@ import type {
 
 const API_URL = 'http://localhost:3000/api/v1';
 const REQUEST_TIMEOUT_MS = 10_000;
+const TOKEN_KEY = 'lab4.auth.token';
+const USER_KEY = 'lab4.auth.user';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -27,10 +30,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
+    const token = localStorage.getItem(TOKEN_KEY);
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...options.headers
       },
       signal: controller.signal
@@ -62,6 +67,36 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     window.clearTimeout(timeoutId);
   }
 }
+
+export const authApi = {
+  login: async (email: string, password: string) => {
+    const response = await request<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+    localStorage.setItem(TOKEN_KEY, response.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(response.user));
+    return response;
+  },
+  logout: () => {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  },
+  getSessionUser: (): User | null => {
+    const token = localStorage.getItem(TOKEN_KEY);
+    const rawUser = localStorage.getItem(USER_KEY);
+    if (!token || !rawUser) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(rawUser) as User;
+    } catch {
+      authApi.logout();
+      return null;
+    }
+  }
+};
 
 async function parseJson(response: Response): Promise<unknown> {
   const text = await response.text();

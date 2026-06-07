@@ -7,6 +7,10 @@ export interface User {
   created_at: string;
 }
 
+interface UserWithPassword extends User {
+  password_hash: string;
+}
+
 export interface UserListOptions {
   email?: string;
   username?: string;
@@ -65,6 +69,16 @@ class UserRepository {
     return db.get<User>(
       'SELECT id, username, email, created_at FROM users WHERE id = ?',
       id
+    );
+  }
+
+  async findByEmailWithPassword(email: string): Promise<UserWithPassword | undefined> {
+    const db = await getDb();
+    return db.get<UserWithPassword>(
+      `SELECT id, username, email, created_at, password_hash
+       FROM users
+       WHERE email = ?`,
+      email
     );
   }
 

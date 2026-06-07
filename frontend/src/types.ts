@@ -60,3 +60,9 @@ export interface ProblemDetails {
   path?: string;
   timestamp?: string;
 }
+
+export interface LoginResponse {
+  token: string;
+  expiresIn: number;
+  user: User;
+}

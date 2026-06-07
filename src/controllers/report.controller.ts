@@ -40,7 +40,7 @@ export class ReportController {
   async getAll(req: Request, res: Response, next: NextFunction) {
     try {
       const { options, page, limit } = getListOptions(req);
-      const reports = await reportService.getAllReports(options);
+      const reports = await reportService.getAllReports(req.currentUser!.id, options);
 
       res.json({
         data: reports.items,
@@ -61,7 +61,7 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-      const report = await reportService.getReportById(req.params.id);
+      const report = await reportService.getReportById(req.params.id, req.currentUser!.id);
       res.json(report);
     } catch (error) {
       next(error);
@@ -71,7 +71,7 @@ export class ReportController {
   async getDetails(req: Request, res: Response, next: NextFunction) {
     try {
       const { options, page, limit } = getListOptions(req);
-      const reports = await reportService.getReportDetails(options);
+      const reports = await reportService.getReportDetails(req.currentUser!.id, options);
       res.json({
         data: reports.items,
         meta: {
@@ -87,7 +87,7 @@ export class ReportController {
 
   async getStats(req: Request, res: Response, next: NextFunction) {
     try {
-      const stats = await reportService.getReportStats();
+      const stats = await reportService.getReportStats(req.currentUser!.id);
       res.json({ data: stats });
     } catch (error) {
       next(error);
@@ -97,7 +97,7 @@ export class ReportController {
   async unsafeSearch(req: Request, res: Response, next: NextFunction) {
     try {
       const title = typeof req.query.title === 'string' ? req.query.title : '';
-      const reports = await reportService.unsafeSearchByTitle(title);
+      const reports = await reportService.unsafeSearchByTitle(title, req.currentUser!.id);
       res.json({
         data: reports,
         meta: {
@@ -109,13 +109,23 @@ export class ReportController {
     }
   }
 
+  async safeSearch(req: Request, res: Response, next: NextFunction) {
+    try {
+      const title = typeof req.query.title === 'string' ? req.query.title : '';
+      const reports = await reportService.safeSearchByTitle(title, req.currentUser!.id);
+      res.json({ data: reports });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async getDetailsById(
     req: Request<{ id: string }>,
     res: Response,
     next: NextFunction
   ) {
     try {
-      const report = await reportService.getReportDetailsById(req.params.id);
+      const report = await reportService.getReportDetailsById(req.params.id, req.currentUser!.id);
       res.json(report);
     } catch (error) {
       next(error);
@@ -124,7 +134,7 @@ export class ReportController {
 
   async create(req: Request, res: Response, next: NextFunction) {
     try {
-      const newReport = await reportService.createReport(req.body);
+      const newReport = await reportService.createReport(req.body, req.currentUser!.id);
       res.status(201).json(newReport);
     } catch (error) {
       next(error);
@@ -137,7 +147,7 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-      const updated = await reportService.updateReport(req.params.id, req.body);
+      const updated = await reportService.updateReport(req.params.id, req.body, req.currentUser!.id);
       res.json(updated);
     } catch (error) {
       next(error);
@@ -150,7 +160,7 @@ export class ReportController {
     next: NextFunction
   ) {
     try {
-      await reportService.deleteReport(req.params.id);
+      await reportService.deleteReport(req.params.id, req.currentUser!.id);
       res.status(204).send();
     } catch (error) {
       next(error);

@@ -1,6 +1,5 @@
 import { categoryRepository } from '../repositories/category.repository.js';
 import { reportRepository, type ReportListOptions } from '../repositories/report.repository.js';
-import { userRepository } from '../repositories/user.repository.js';
 import type { CreateReportDto } from '../dtos/create-report.dto.js';
 import type { UpdateReportDto } from '../dtos/update-report.dto.js';
 import { badRequest, forbidden, notFound } from '../utils/http-error.js';
@@ -9,39 +8,39 @@ const severityValues = ['Low', 'Medium', 'High'];
 const statusValues = ['Open', 'Closed', 'In Progress'];
 
 export class ReportService {
-  async getAllReports(options: ReportListOptions) {
-    return reportRepository.findAll(options);
+  async getAllReports(currentUserId: number, options: ReportListOptions) {
+    return reportRepository.findAll(currentUserId, options);
   }
 
-  async getReportById(id: string) {
-    const report = await reportRepository.findById(id);
+  async getReportById(id: string, currentUserId: number) {
+    const report = await reportRepository.findByIdForOwner(id, currentUserId);
 
     if (!report) {
-      throw notFound('Report not found', { id });
+      await this.throwNotFoundOrForbidden(id);
     }
 
     return report;
   }
 
-  async getReportDetailsById(id: string) {
-    const report = await reportRepository.findDetailsById(id);
+  async getReportDetailsById(id: string, currentUserId: number) {
+    const report = await reportRepository.findDetailsById(id, currentUserId);
 
     if (!report) {
-      throw notFound('Report not found', { id });
+      await this.throwNotFoundOrForbidden(id);
     }
 
     return report;
   }
 
-  async getReportDetails(options: ReportListOptions) {
-    return reportRepository.findDetails(options);
+  async getReportDetails(currentUserId: number, options: ReportListOptions) {
+    return reportRepository.findDetails(currentUserId, options);
   }
 
-  async getReportStats() {
-    return reportRepository.getStats();
+  async getReportStats(currentUserId: number) {
+    return reportRepository.getStats(currentUserId);
   }
 
-  async unsafeSearchByTitle(title: string) {
+  async unsafeSearchByTitle(title: string, currentUserId: number) {
     if (process.env.ENABLE_UNSAFE_SQL_DEMO !== 'true') {
       throw forbidden('Unsafe SQL demo is disabled', {
         enableWith: 'ENABLE_UNSAFE_SQL_DEMO=true'
@@ -52,26 +51,28 @@ export class ReportService {
       throw badRequest('title query parameter is required', { field: 'title' });
     }
 
-    return reportRepository.unsafeSearchByTitle(title);
+    return reportRepository.unsafeSearchByTitle(title, currentUserId);
   }
 
-  async createReport(data: CreateReportDto) {
-    const userId = data.userId ?? data.user_id;
-    const categoryId = data.categoryId ?? data.category_id ?? null;
-
-    if (!userId) {
-      throw badRequest('userId is required', { field: 'userId' });
+  async safeSearchByTitle(title: string, currentUserId: number) {
+    if (!title) {
+      throw badRequest('title query parameter is required', { field: 'title' });
     }
 
+    return reportRepository.safeSearchByTitle(title, currentUserId);
+  }
+
+  async createReport(data: CreateReportDto, currentUserId: number) {
+    const categoryId = data.categoryId ?? data.category_id ?? null;
+
     this.validateRequiredReportFields(data);
-    await this.ensureUserExists(userId);
 
     if (categoryId !== null) {
       await this.ensureCategoryExists(categoryId);
     }
 
     return reportRepository.create({
-      user_id: userId,
+      user_id: currentUserId,
       category_id: categoryId,
       title: data.title,
       severity: data.severity,
@@ -80,8 +81,7 @@ export class ReportService {
     });
   }
 
-  async updateReport(id: string, data: UpdateReportDto) {
-    const userId = data.userId ?? data.user_id;
+  async updateReport(id: string, data: UpdateReportDto, currentUserId: number) {
     const categoryId = data.categoryId ?? data.category_id;
 
     if (data.title !== undefined && data.title.length < 3) {
@@ -94,10 +94,6 @@ export class ReportService {
 
     if (data.status !== undefined && !statusValues.includes(data.status)) {
       throw badRequest('Status must be Open, Closed, or In Progress', { field: 'status' });
-    }
-
-    if (userId !== undefined) {
-      await this.ensureUserExists(userId);
     }
 
     if (categoryId !== undefined && categoryId !== null) {
@@ -114,7 +110,6 @@ export class ReportService {
       reporter?: string;
     } = {};
 
-    if (userId !== undefined) updateData.user_id = userId;
     if (categoryId !== undefined) updateData.category_id = categoryId;
     if (data.title !== undefined) updateData.title = data.title;
     if (data.severity !== undefined) updateData.severity = data.severity;
@@ -122,20 +117,20 @@ export class ReportService {
     if (data.description !== undefined) updateData.description = data.description;
     if (data.reporter !== undefined) updateData.reporter = data.reporter;
 
-    const updated = await reportRepository.update(id, updateData);
+    const updated = await reportRepository.update(id, currentUserId, updateData);
 
     if (!updated) {
-      throw notFound('Report not found', { id });
+      await this.throwNotFoundOrForbidden(id);
     }
 
     return updated;
   }
 
-  async deleteReport(id: string) {
-    const deleted = await reportRepository.delete(id);
+  async deleteReport(id: string, currentUserId: number) {
+    const deleted = await reportRepository.delete(id, currentUserId);
 
     if (!deleted) {
-      throw notFound('Report not found', { id });
+      await this.throwNotFoundOrForbidden(id);
     }
 
     return true;
@@ -159,18 +154,19 @@ export class ReportService {
     }
   }
 
-  private async ensureUserExists(userId: number) {
-    const user = await userRepository.findById(String(userId));
-    if (!user) {
-      throw badRequest('userId must reference an existing user', { userId });
-    }
-  }
-
   private async ensureCategoryExists(categoryId: number) {
     const category = await categoryRepository.findById(String(categoryId));
     if (!category) {
       throw badRequest('categoryId must reference an existing category', { categoryId });
     }
+  }
+
+  private async throwNotFoundOrForbidden(id: string): Promise<never> {
+    if (await reportRepository.exists(id)) {
+      throw forbidden('You do not have access to this report', { id });
+    }
+
+    throw notFound('Report not found', { id });
   }
 }
 

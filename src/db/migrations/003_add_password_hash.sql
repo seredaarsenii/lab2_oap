@@ -1,0 +1,2 @@
+ALTER TABLE users
+ADD COLUMN password_hash TEXT NOT NULL DEFAULT 'pbkdf2$120000$lab4-demo-salt-v1$a8621d7c2550e895ee42f253bf9e16f82050af9965beae1f98db6cc0227f0bfa';

@@ -1,4 +1,5 @@
 import { getDb } from '../db/db.js';
+import { hashPassword } from '../services/auth.service.js';
 
 const users = [
   ['Ivan', 'ivan@example.com'],
@@ -24,6 +25,7 @@ const reports = [
 class SeedRepository {
   async seed() {
     const db = await getDb();
+    const passwordHash = hashPassword('Student123!');
 
     await db.exec('BEGIN TRANSACTION;');
 
@@ -35,9 +37,10 @@ class SeedRepository {
 
       for (const [username, email] of users) {
         await db.run(
-          'INSERT INTO users (username, email) VALUES (?, ?)',
+          'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
           username,
-          email
+          email,
+          passwordHash
         );
       }
 

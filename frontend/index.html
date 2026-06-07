@@ -8,13 +8,36 @@
     <link rel="stylesheet" href="/src/style.css">
   </head>
   <body>
+    <section id="authSection" class="card form-card">
+      <p class="eyebrow">Автентифікація</p>
+      <h1>Вхід до Lab 4</h1>
+      <p>Демо-акаунт: <code>ivan@example.com</code>, пароль <code>Student123!</code>.</p>
+      <div id="authNotice" class="notice hidden" role="status"></div>
+      <form id="authForm">
+        <div class="field">
+          <label for="loginEmail">Email</label>
+          <input id="loginEmail" type="email" value="ivan@example.com" required>
+        </div>
+        <div class="field">
+          <label for="loginPassword">Пароль</label>
+          <input id="loginPassword" type="password" value="Student123!" required>
+        </div>
+        <button class="button primary" type="submit">Увійти</button>
+      </form>
+    </section>
+
+    <div id="appShell" class="hidden">
     <header class="page-header">
       <div>
         <p class="eyebrow">Лабораторна робота №4</p>
         <h1>Звіти про вразливості</h1>
         <p>Frontend і backend взаємодіють через версіонований REST API.</p>
       </div>
-      <button id="reloadBtn" class="button secondary" type="button">Оновити список</button>
+      <div>
+        <span id="currentUserLabel"></span>
+        <button id="reloadBtn" class="button secondary" type="button">Оновити список</button>
+        <button id="logoutBtn" class="button secondary" type="button">Вийти</button>
+      </div>
     </header>
 
     <main class="layout">
@@ -136,6 +159,7 @@
       </div>
       <div id="detailsContent"></div>
     </dialog>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
   </body>

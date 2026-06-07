@@ -1,0 +1,147 @@
+@baseUrl = http://localhost:3000
+@apiUrl = {{baseUrl}}/api/v1
+@frontendOrigin = http://localhost:5173
+@existingCategoryId = 1
+
+### 1. Health check
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. CORS preflight with Authorization header
+OPTIONS {{apiUrl}}/reports
+Origin: {{frontendOrigin}}
+Access-Control-Request-Method: POST
+Access-Control-Request-Headers: Content-Type, Authorization
+
+### 3. Login as Ivan
+# @name login
+POST {{apiUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "ivan@example.com",
+  "password": "Student123!"
+}
+
+### 4. Login as Olena for IDOR checks
+# @name loginOlena
+POST {{apiUrl}}/auth/login
+Content-Type: application/json
+Accept: application/json
+
+{
+  "email": "olena@example.com",
+  "password": "Student123!"
+}
+
+### 5. Users and categories for form/reference data
+GET {{apiUrl}}/categories?limit=100
+Accept: application/json
+
+### 6. 401: reports require Authorization
+GET {{apiUrl}}/reports
+Accept: application/json
+
+### 7. GET own reports
+GET {{apiUrl}}/reports?limit=100
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 8. GET own report details
+GET {{apiUrl}}/reports/1
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 9. GET own report with JOIN data
+GET {{apiUrl}}/reports/1/details
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 10. GET stats scoped to current user
+GET {{apiUrl}}/reports/stats
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 11. POST report. Spoofed userId=2 is ignored; owner is token user Ivan.
+# @name createReport
+POST {{apiUrl}}/reports
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "userId": 2,
+  "categoryId": {{existingCategoryId}},
+  "title": "REST Client defense report {{$timestamp}}",
+  "severity": "High",
+  "description": "Temporary report created during the laboratory defense",
+  "reporter": "Student"
+}
+
+### 12. PUT own created report
+PUT {{apiUrl}}/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "categoryId": {{existingCategoryId}},
+  "title": "Updated REST Client defense report",
+  "severity": "Medium",
+  "status": "In Progress",
+  "description": "The report was successfully updated through the REST API",
+  "reporter": "Student"
+}
+
+### 13. 403 IDOR: Olena cannot read Ivan's created report
+GET {{apiUrl}}/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{loginOlena.response.body.$.token}}
+Accept: application/json
+
+### 14. DELETE own created report
+DELETE {{apiUrl}}/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 15. 404 after DELETE
+GET {{apiUrl}}/reports/{{createReport.response.body.$.id}}
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 16. 400 validation
+POST {{apiUrl}}/reports
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "title": "x",
+  "severity": "High",
+  "description": "The title is intentionally invalid",
+  "reporter": "Student"
+}
+
+### 17. Safe SQLi check: returns empty data array
+GET {{apiUrl}}/reports/demo/safe-search?title=%27%20OR%201%3D1%20--
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 18. Unsafe SQLi PoC: only works with ENABLE_UNSAFE_SQL_DEMO=true
+GET {{apiUrl}}/reports/demo/unsafe-search?title=%27%20OR%201%3D1%20--
+Authorization: Bearer {{login.response.body.$.token}}
+Accept: application/json
+
+### 19. Stored XSS payload: frontend renders it as textContent
+POST {{apiUrl}}/reports
+Authorization: Bearer {{login.response.body.$.token}}
+Content-Type: application/json
+Accept: application/json
+
+{
+  "categoryId": {{existingCategoryId}},
+  "title": "<script>alert(1)</script>",
+  "severity": "High",
+  "description": "<img src=x onerror=alert(1)>",
+  "reporter": "Security student"
+}

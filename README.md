@@ -1,13 +1,8 @@
-# Lab 4: TypeScript Frontend + REST API
+# Lab 4: SQL Injection, IDOR, XSS та Security Misconfiguration
 
-Застосунок для керування звітами про вразливості:
+TypeScript-застосунок з Express, SQLite і Vite frontend. У роботі реалізовано 4 security-сценарії з відтворенням проблеми, виправленням і повторною перевіркою.
 
-- backend: Node.js, Express, TypeScript, SQLite;
-- frontend: Vite, TypeScript, HTML, CSS;
-- API: `/api/v1`;
-- узгоджені JSON-помилки та клієнтська/серверна валідація.
-
-## Запуск
+## Встановлення і запуск
 
 ```powershell
 npm.cmd install
@@ -15,249 +10,148 @@ npm.cmd run seed
 npm.cmd run dev
 ```
 
-Після запуску:
+- frontend: `http://localhost:5173`
+- backend: `http://localhost:3000`
+- health check: `http://localhost:3000/health`
 
-- frontend: `http://localhost:5173`;
-- backend: `http://localhost:3000`;
-- health check: `http://localhost:3000/health`.
+Додатково нічого встановлювати не потрібно. Автентифікація, хешування паролів і підпис токенів реалізовані стандартним модулем Node.js `crypto`.
 
-Команда `npm.cmd run dev` запускає обидві частини одночасно. Окремий запуск:
+Демо-користувачі після `npm.cmd run seed`:
+
+| Email | Пароль | Власні report ID |
+|---|---|---|
+| `ivan@example.com` | `Student123!` | 1, 2 |
+| `olena@example.com` | `Student123!` | 3, 4 |
+| `maksym@example.com` | `Student123!` | 5, 6 |
+
+Для production потрібно обов'язково задати довгий секрет:
 
 ```powershell
-npm.cmd run dev:backend
-npm.cmd run dev:frontend
+$env:AUTH_TOKEN_SECRET="replace-with-a-long-random-secret"
+npm.cmd run dev
 ```
 
-Перевірка TypeScript і production build:
+## Автоматична перевірка
 
 ```powershell
 npm.cmd run check
+npm.cmd run security:regression
 npm.cmd run build
 ```
 
-## CORS
+`security:regression` повторює SQLi/IDOR/XSS/security-header сценарії та завершується текстом `Security regression passed`.
 
-Backend дозволяє запити лише з frontend origin:
+## Автентифікація
 
-```text
-http://localhost:5173
-```
-
-Дозволені методи:
-
-```text
-GET, POST, PUT, PATCH, DELETE, OPTIONS
-```
-
-Дозволений заголовок:
-
-```text
-Content-Type
-```
-
-## Версія API
-
-Основний префікс:
-
-```text
-http://localhost:3000/api/v1
-```
-
-Старі маршрути `/api/...` залишені як тимчасові alias, але frontend використовує лише `/api/v1/...`.
-
-## Основна сутність: reports
-
-Frontend використовує п'ять операцій одного `reportApi`:
-
-```text
-getList()
-getById(id)
-create(dto)
-update(id, dto)
-remove(id)
-```
-
-HTTP endpoints:
-
-```text
-GET    /api/v1/reports
-GET    /api/v1/reports/:id
-POST   /api/v1/reports
-PUT    /api/v1/reports/:id
-DELETE /api/v1/reports/:id
-```
-
-Також доступні CRUD endpoints:
-
-```text
-/api/v1/users
-/api/v1/categories
-```
-
-## Приклади запитів
-
-### GET списку
+Login:
 
 ```powershell
-curl.exe http://localhost:3000/api/v1/reports
-```
-
-### GET деталей
-
-```powershell
-curl.exe http://localhost:3000/api/v1/reports/1
-```
-
-### POST
-
-```powershell
-curl.exe -X POST http://localhost:3000/api/v1/reports `
+curl.exe -X POST http://localhost:3000/api/v1/auth/login `
   -H "Content-Type: application/json" `
-  -d '{\"userId\":1,\"categoryId\":1,\"title\":\"CSRF vulnerability\",\"severity\":\"High\",\"description\":\"State-changing request has no CSRF protection\",\"reporter\":\"Student\"}'
+  -d '{\"email\":\"ivan@example.com\",\"password\":\"Student123!\"}'
 ```
 
-Успішний POST повертає `201 Created`.
+З відповіді треба взяти `token` і передавати:
 
-### PUT
+```text
+Authorization: Bearer <token>
+```
+
+Без заголовка або з невалідним токеном захищені endpoints повертають `401`. Контекст `currentUser` визначається тільки після серверної перевірки підпису токена.
+
+## A. SQL Injection
+
+### Було
+
+Контрольований навчальний endpoint будує SQL конкатенацією:
+
+```text
+GET /api/v1/reports/demo/unsafe-search?title=' OR 1=1 --
+```
+
+Він вимкнений за замовчуванням. Для локального PoC:
 
 ```powershell
-curl.exe -X PUT http://localhost:3000/api/v1/reports/1 `
-  -H "Content-Type: application/json" `
-  -d '{\"status\":\"In Progress\",\"title\":\"SQL Injection updated\"}'
+$env:ENABLE_UNSAFE_SQL_DEMO="true"
+npm.cmd run dev:backend
 ```
 
-### DELETE
+Payload `%27%20OR%201%3D1%20--` змінює умову та повертає зайві рядки.
 
-```powershell
-curl.exe -X DELETE http://localhost:3000/api/v1/reports/1
+### Стало
+
+Основний CRUD і safe demo використовують параметри `?`:
+
+```text
+GET /api/v1/reports/demo/safe-search?title=%27%20OR%201%3D1%20--
 ```
 
-Успішний DELETE повертає `204 No Content`.
+Той самий payload трактується як звичайний текст і не повертає чужі рядки. Динамічні поля сортування вибираються тільки з allowlist.
 
-## Формат помилок
+## Б. IDOR / Broken Access Control
 
-Усі backend-помилки проходять через централізований middleware:
+### Було
+
+ID з URL використовувався без перевірки власника, тому користувач міг спробувати прочитати або змінити чужий report.
+
+### Стало
+
+У `reports.user_id` зберігається власник. Backend додає `user_id = currentUser.id` до list/read/update/delete/JOIN/stats запитів.
+
+- немає токена: `401`
+- report не існує: `404`
+- report існує, але належить іншому користувачу: `403`
+- `userId` у body не дає змінити власника
+
+Приклад: token Івана + `GET /api/v1/reports/3` повертає `403`.
+
+## В. XSS
+
+Payload для перевірки:
+
+```html
+<script>alert(1)</script>
+```
+
+Дані дозволено зберігати як текст, але frontend відображає поля користувача через `textContent`, `createTextNode`-еквівалентні DOM API та `Option`. Небезпечний `innerHTML` не використовується, тому скрипт не виконується. Забороняти всі кутові дужки не потрібно: проблема вирішена в місці відображення.
+
+## Г. Security Misconfiguration
+
+Backend:
+
+- вимикає `X-Powered-By`;
+- обмежує CORS origin до `http://localhost:5173`;
+- дозволяє лише потрібні methods і headers;
+- обмежує JSON body до `32kb`;
+- не повертає stack trace або SQL-текст у `500`;
+- додає `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Cross-Origin-Resource-Policy`.
+
+Коди та формат помилок централізовані:
 
 ```json
 {
-  "code": 400,
-  "message": "Title must be at least 3 characters long",
-  "details": {
-    "field": "title"
-  },
-  "path": "/api/v1/reports",
-  "timestamp": "2026-06-06T12:00:00.000Z"
+  "code": 403,
+  "message": "You do not have access to this report",
+  "details": { "id": "3" },
+  "path": "/3",
+  "timestamp": "2026-06-07T12:00:00.000Z"
 }
 ```
 
-Frontend перевіряє `response.ok`, читає `{ code, message, details }` та показує:
+## Security regression HTTP
 
-- загальне повідомлення про помилку;
-- польову помилку, якщо backend повернув `details.field`;
-- окреме повідомлення для `404`;
-- зрозуміле повідомлення для `500`;
-- повідомлення про недоступний backend;
-- повідомлення про timeout.
+Готові ручні сценарії збережені у `security-regression.http`. Вони показують login, 401, IDOR 403, safe SQLi, optional unsafe SQLi, XSS payload і перевірку headers.
 
-## Валідація
+## Структура захисту
 
-Frontend перевіряє:
+- `src/middlewares/auth.middleware.ts` - єдина перевірка Bearer token.
+- `src/middlewares/security.middleware.ts` - security headers.
+- `src/services/auth.service.ts` - password hash і підпис/перевірка token.
+- `src/services/report.service.ts` - централізовані правила доступу.
+- `src/repositories/report.repository.ts` - параметризовані SQL та owner filters.
+- `src/middlewares/error.middleware.ts` - єдиний JSON-формат помилок.
+- `src/security-regression.ts` - автоматичні сценарії «було/стало».
 
-- обов'язкового автора;
-- назву від 3 символів;
-- допустиму критичність;
-- репортера від 2 символів;
-- опис від 5 символів.
+## Важливе обмеження
 
-Backend повторно перевіряє DTO та не довіряє клієнтській валідації.
-
-Форма не очищається після помилки. Під час запиту поля та кнопка блокуються.
-
-## UI-стани
-
-Для списку реалізовані:
-
-- `loading` - текст і spinner;
-- `success` - таблиця даних;
-- `empty` - повідомлення, якщо список або пошук порожній;
-- `error` - причина помилки та кнопка повторного запиту.
-
-Доступні створення, перегляд деталей, редагування й видалення з підтвердженням.
-
-## Негативні сценарії
-
-### 400: помилка валідації
-
-```powershell
-curl.exe -X POST http://localhost:3000/api/v1/reports `
-  -H "Content-Type: application/json" `
-  -d '{\"userId\":1,\"title\":\"x\",\"severity\":\"High\",\"description\":\"valid description\",\"reporter\":\"Student\"}'
-```
-
-Очікування: `400`, JSON-помилка, `details.field = "title"`. У UI аналогічна помилка показується біля поля.
-
-### 404: запис не знайдено
-
-```powershell
-curl.exe http://localhost:3000/api/v1/reports/999999
-```
-
-Очікування: `404` та повідомлення `Report not found`.
-
-### Backend недоступний
-
-1. Відкрити frontend.
-2. Зупинити backend.
-3. Натиснути `Оновити список`.
-
-Очікування: UI не зависає і показує, що backend на порту `3000` недоступний.
-
-### Timeout
-
-У `frontend/src/apiClient.ts` для всіх запитів встановлено timeout `10 000 ms` через `AbortController`. Якщо сервер не відповідає вчасно, UI показує інструкцію повторити запит.
-
-### 500
-
-Будь-яка неочікувана серверна помилка централізовано перетворюється на:
-
-```json
-{
-  "code": 500,
-  "message": "Internal Server Error",
-  "details": null
-}
-```
-
-Frontend не показує технічні деталі й виводить повідомлення: `Помилка сервера. Спробуйте повторити запит пізніше.`
-
-## Структура
-
-```text
-frontend/
-  index.html
-  src/
-    apiClient.ts
-    main.ts
-    style.css
-    types.ts
-src/
-  controllers/
-  db/
-  dtos/
-  middlewares/
-  repositories/
-  routes/
-  services/
-```
-
-DTO та відповіді frontend типізовані в `frontend/src/types.ts`. Усі `fetch`-запити, JSON parsing, `response.ok`, timeout і перетворення помилок зібрані в `frontend/src/apiClient.ts`.
-
-## SQLite
-
-Файл бази створюється автоматично:
-
-```text
-data/lab3.db
-```
-
-Міграції зберігаються у `src/db/migrations` і виконуються транзакційно. Seed створює користувачів, категорії та звіти для демонстрації UI.
+Unsafe SQL endpoint існує лише як локальний навчальний PoC і вимкнений без `ENABLE_UNSAFE_SQL_DEMO=true`. Не вмикайте його у відкритому або production-середовищі.

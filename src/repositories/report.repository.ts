@@ -44,10 +44,10 @@ export interface ReportListOptions {
 }
 
 class ReportRepository {
-  async findAll(options: ReportListOptions = {}) {
+  async findAll(ownerUserId: number, options: ReportListOptions = {}) {
     const db = await getDb();
-    const where: string[] = [];
-    const params: unknown[] = [];
+    const where: string[] = ['user_id = ?'];
+    const params: unknown[] = [ownerUserId];
 
     if (options.status) {
       where.push('status = ?');
@@ -102,7 +102,23 @@ class ReportRepository {
     );
   }
 
-  async findDetailsById(id: string): Promise<ReportDetails | undefined> {
+  async findByIdForOwner(id: string, ownerUserId: number) {
+    const db = await getDb();
+    return db.get<Report>(
+      `SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
+       FROM reports
+       WHERE id = ? AND user_id = ?`,
+      id,
+      ownerUserId
+    );
+  }
+
+  async exists(id: string) {
+    const db = await getDb();
+    return Boolean(await db.get<{ id: number }>('SELECT id FROM reports WHERE id = ?', id));
+  }
+
+  async findDetailsById(id: string, ownerUserId: number): Promise<ReportDetails | undefined> {
     const db = await getDb();
     const row = await db.get<{
       id: number;
@@ -136,8 +152,9 @@ class ReportRepository {
        FROM reports
        JOIN users ON users.id = reports.user_id
        LEFT JOIN categories ON categories.id = reports.category_id
-       WHERE reports.id = ?`,
-      id
+       WHERE reports.id = ? AND reports.user_id = ?`,
+      id,
+      ownerUserId
     );
 
     if (!row) {
@@ -169,10 +186,10 @@ class ReportRepository {
     };
   }
 
-  async findDetails(options: ReportListOptions = {}) {
+  async findDetails(ownerUserId: number, options: ReportListOptions = {}) {
     const db = await getDb();
-    const where: string[] = [];
-    const params: unknown[] = [];
+    const where: string[] = ['reports.user_id = ?'];
+    const params: unknown[] = [ownerUserId];
 
     if (options.status) {
       where.push('reports.status = ?');
@@ -272,7 +289,7 @@ class ReportRepository {
     };
   }
 
-  async getStats(): Promise<ReportStats> {
+  async getStats(ownerUserId: number): Promise<ReportStats> {
     const db = await getDb();
     const stats = await db.get<ReportStats>(
       `SELECT
@@ -281,7 +298,9 @@ class ReportRepository {
          COALESCE(SUM(CASE WHEN status = 'In Progress' THEN 1 ELSE 0 END), 0) AS in_progress,
          COALESCE(SUM(CASE WHEN status = 'Closed' THEN 1 ELSE 0 END), 0) AS closed,
          COALESCE(SUM(CASE WHEN severity = 'High' THEN 1 ELSE 0 END), 0) AS high_severity
-       FROM reports`
+       FROM reports
+       WHERE user_id = ?`,
+      ownerUserId
     );
 
     return stats ?? {
@@ -293,16 +312,28 @@ class ReportRepository {
     };
   }
 
-  async unsafeSearchByTitle(title: string) {
+  async unsafeSearchByTitle(title: string, ownerUserId: number) {
     const db = await getDb();
     const sql = `
       SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
       FROM reports
-      WHERE title = '${title}'
+      WHERE user_id = ${ownerUserId} AND title = '${title}'
       LIMIT 20
     `;
 
     return db.all<Report[]>(sql);
+  }
+
+  async safeSearchByTitle(title: string, ownerUserId: number) {
+    const db = await getDb();
+    return db.all<Report[]>(
+      `SELECT id, user_id, category_id, title, severity, status, description, reporter, created_at
+       FROM reports
+       WHERE user_id = ? AND title = ?
+       LIMIT 20`,
+      ownerUserId,
+      title
+    );
   }
 
   async create(data: Omit<Report, 'id' | 'status' | 'created_at'>) {
@@ -326,35 +357,44 @@ class ReportRepository {
     return created;
   }
 
-  async update(id: string, data: Partial<Omit<Report, 'id' | 'created_at'>>) {
+  async update(
+    id: string,
+    ownerUserId: number,
+    data: Partial<Omit<Report, 'id' | 'created_at'>>
+  ) {
     const allowedFields = ['user_id', 'category_id', 'title', 'severity', 'status', 'description', 'reporter'] as const;
     const entries = allowedFields
       .filter(field => data[field] !== undefined)
       .map(field => [field, data[field]] as const);
 
     if (!entries.length) {
-      return this.findById(id);
+      return this.findByIdForOwner(id, ownerUserId);
     }
 
     const assignments = entries.map(([field]) => `${field} = ?`).join(', ');
     const params = entries.map(([, value]) => value);
     const db = await getDb();
     const result = await db.run(
-      `UPDATE reports SET ${assignments} WHERE id = ?`,
+      `UPDATE reports SET ${assignments} WHERE id = ? AND user_id = ?`,
       ...params,
-      id
+      id,
+      ownerUserId
     );
 
     if (!result.changes) {
       return null;
     }
 
-    return this.findById(id);
+    return this.findByIdForOwner(id, ownerUserId);
   }
 
-  async delete(id: string) {
+  async delete(id: string, ownerUserId: number) {
     const db = await getDb();
-    const result = await db.run('DELETE FROM reports WHERE id = ?', id);
+    const result = await db.run(
+      'DELETE FROM reports WHERE id = ? AND user_id = ?',
+      id,
+      ownerUserId
+    );
     return Boolean(result.changes);
   }
 }

@@ -27,6 +27,10 @@ export function forbidden(message: string, details?: ErrorDetails) {
   return new HttpError(403, message, details);
 }
 
+export function unauthorized(message: string, details?: ErrorDetails) {
+  return new HttpError(401, message, details);
+}
+
 export function notFound(message: string, details?: ErrorDetails) {
   return new HttpError(404, message, details);
 }
