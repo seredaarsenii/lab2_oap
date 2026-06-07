@@ -11,8 +11,8 @@ import type {
 
 const API_URL = 'http://localhost:3000/api/v1';
 const REQUEST_TIMEOUT_MS = 10_000;
-const TOKEN_KEY = 'lab4.auth.token';
-const USER_KEY = 'lab4.auth.user';
+const TOKEN_KEY = 'lab5.auth.token';
+const USER_KEY = 'lab5.auth.user';
 
 export class ApiError extends Error {
   readonly status: number;

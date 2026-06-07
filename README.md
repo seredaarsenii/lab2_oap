@@ -1,6 +1,6 @@
-# Lab 4: SQL Injection, IDOR, XSS та Security Misconfiguration
+# Лабораторна робота №5: SQL Injection, IDOR, XSS та Security Misconfiguration
 
-TypeScript-застосунок з Express, SQLite і Vite frontend. У роботі реалізовано 4 security-сценарії з відтворенням проблеми, виправленням і повторною перевіркою.
+TypeScript-застосунок з Express, SQLite і Vite frontend. У лабораторній роботі №5 реалізовано 4 security-сценарії з відтворенням проблеми, виправленням і повторною перевіркою.
 
 ## Встановлення і запуск
 

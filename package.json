@@ -1,6 +1,6 @@
 {
-  "name": "lab4",
-  "version": "1.0.0",
+  "name": "lab5",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k -n backend,frontend -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",

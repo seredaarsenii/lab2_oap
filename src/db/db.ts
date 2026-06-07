@@ -10,7 +10,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '..', '..');
 
-export const dbPath = path.join(rootDir, 'data', 'lab3.db');
+export const dbPath = path.join(rootDir, 'data', 'lab5.db');
 
 let db: AppDatabase | null = null;
 

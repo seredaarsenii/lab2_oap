@@ -8,7 +8,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import { HttpError, unauthorized } from '../utils/http-error.js';
 
 const TOKEN_TTL_SECONDS = 60 * 60;
-const tokenSecret = process.env.AUTH_TOKEN_SECRET ?? 'lab4-development-secret-change-me';
+const tokenSecret = process.env.AUTH_TOKEN_SECRET ?? 'lab5-development-secret-change-me';
 
 export interface AuthenticatedUser {
   id: number;
