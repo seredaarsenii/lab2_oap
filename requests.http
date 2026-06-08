@@ -1,0 +1,252 @@
+@baseUrl = http://localhost:3000
+
+### Health check
+GET {{baseUrl}}/health
+
+
+###############################################################################
+# 1. USERS - FULL CRUD
+###############################################################################
+
+### POST user - expected: 201 Created
+# @name createUser
+
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "TestUser{{$timestamp}}",
+  "email": "test.user.{{$timestamp}}@example.com"
+}
+
+###
+
+### GET users list - expected: 200 OK with data and meta
+GET {{baseUrl}}/api/users?sort=username&order=ASC&limit=10
+
+
+### GET user by created id - expected: 200 OK
+GET {{baseUrl}}/api/users/{{createUser.response.body.$.id}}
+
+
+### PUT user - expected: 200 OK
+PUT {{baseUrl}}/api/users/{{createUser.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "username": "DemoUserUpdated"
+}
+
+
+###############################################################################
+# 2. CATEGORIES - FULL CRUD
+###############################################################################
+
+### POST category - expected: 201 Created
+# @name createCategory
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "Demo Category {{$timestamp}}",
+  "description": "Category created for CRUD demonstration"
+}
+
+###
+
+### GET categories list - expected: 200 OK with data and meta
+GET {{baseUrl}}/api/categories?sort=name&order=ASC&limit=10
+
+###
+
+### GET category by created id - expected: 200 OK
+GET {{baseUrl}}/api/categories/{{createCategory.response.body.$.id}}
+
+###
+
+### PUT category - expected: 200 OK
+PUT {{baseUrl}}/api/categories/{{createCategory.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "description": "Updated category description"
+}
+
+
+###############################################################################
+# 3. REPORTS - FULL CRUD
+###############################################################################
+
+### POST report with foreign keys - expected: 201 Created
+# @name createReport
+POST {{baseUrl}}/api/reports
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "categoryId": 1,
+  "title": "Demo SQL Injection",
+  "severity": "High",
+  "description": "Report created for CRUD demonstration",
+  "reporter": "Ivan"
+}
+
+###
+
+### GET reports list - expected: 200 OK with data and meta
+GET {{baseUrl}}/api/reports
+
+###
+
+### GET report by created id - expected: 200 OK
+GET {{baseUrl}}/api/reports/{{createReport.response.body.$.id}}
+
+###
+
+### PUT report - expected: 200 OK
+PUT {{baseUrl}}/api/reports/{{createReport.response.body.$.id}}
+Content-Type: application/json
+
+{
+  "title": "Updated Demo SQL Injection",
+  "status": "In Progress",
+  "severity": "Medium"
+}
+
+
+###############################################################################
+# 4. FILTERING, SORTING, PAGINATION, WHERE + ORDER BY + LIMIT
+###############################################################################
+
+### Reports: status + userId filters, sort, order and limit
+GET {{baseUrl}}/api/reports?status=Open&userId=1&sort=created_at&order=DESC&limit=5
+
+###
+
+### Reports: category filter and title sorting
+GET {{baseUrl}}/api/reports?categoryId=1&sort=title&order=ASC&page=1&limit=5
+
+###
+
+### Users: email filter and username sorting
+GET {{baseUrl}}/api/users?email=example.com&sort=username&order=ASC&limit=5
+
+###
+
+### Categories: name filter and sorting
+GET {{baseUrl}}/api/categories?name=Web&sort=name&order=ASC&limit=5
+
+
+###############################################################################
+# 5. RELATED DATA THROUGH JOIN
+###############################################################################
+
+### One report with related user and category
+GET {{baseUrl}}/api/reports/{{createReport.response.body.$.id}}/details
+
+###
+
+### JOIN + WHERE + ORDER BY + LIMIT
+GET {{baseUrl}}/api/reports/details?status=Open&userId=1&sort=created_at&order=DESC&limit=5
+
+
+###############################################################################
+# 6. AGGREGATED ANALYTICS: COUNT + SUM
+###############################################################################
+
+### Report statistics
+GET {{baseUrl}}/api/reports/stats
+
+
+###############################################################################
+# 7. CENTRALIZED ERROR HANDLING
+###############################################################################
+
+### 400 Bad Request - required fields are missing
+POST {{baseUrl}}/api/reports
+Content-Type: application/json
+
+{
+  "title": "Invalid report"
+}
+
+###
+
+### 400 Bad Request - invalid severity
+POST {{baseUrl}}/api/reports
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "categoryId": 1,
+  "title": "Invalid severity report",
+  "severity": "Critical",
+  "description": "Severity does not satisfy validation and CHECK rules",
+  "reporter": "Ivan"
+}
+
+###
+
+### 404 Not Found - resource does not exist
+GET {{baseUrl}}/api/reports/999999
+
+###
+
+### 409 Conflict - seeded email already exists
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "Ivan 2 tester",
+  "email": "ivan@example.com"
+}
+
+###
+
+### 409 Conflict - seeded category name already exists
+POST {{baseUrl}}/api/categories
+Content-Type: application/json
+
+{
+  "name": "Web",
+  "description": "Duplicate category"
+}
+
+
+###############################################################################
+# 8. SQL INJECTION CLASSROOM DEMONSTRATION
+###############################################################################
+
+# $env:ENABLE_UNSAFE_SQL_DEMO='true'
+
+### Normal unsafe search - expected: one matching report
+GET {{baseUrl}}/api/reports/demo/unsafe-search?title=SQL%20Injection
+
+###
+
+### SQL injection payload: ' OR 1=1 --
+### Expected: many rows, because the injected condition is always true
+GET {{baseUrl}}/api/reports/demo/unsafe-search?title=%27%20OR%201%3D1%20--
+
+
+###############################################################################
+# 9. DELETE OPERATIONS
+###############################################################################
+
+### DELETE report first - expected: 204 No Content
+DELETE {{baseUrl}}/api/reports/{{createReport.response.body.$.id}}
+
+###
+
+### Confirm deleted report - expected: 404 Not Found
+GET {{baseUrl}}/api/reports/{{createReport.response.body.$.id}}
+
+###
+
+### DELETE category - expected: 204 No Content
+DELETE {{baseUrl}}/api/categories/{{createCategory.response.body.$.id}}
+
+###
+
+### DELETE user - expected: 204 No Content
+DELETE {{baseUrl}}/api/users/{{createUser.response.body.$.id}}
